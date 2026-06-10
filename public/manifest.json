@@ -1,0 +1,18 @@
+{
+  "short_name": "MapTDP",
+  "name": "MapTDP - Recherche de TDP",
+  "description": "Outil de recherche et gestion de TDP pour techniciens télécoms",
+  "icons": [
+    {
+      "src": "favicon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#050505",
+  "background_color": "#050505",
+  "orientation": "portrait-primary"
+}
