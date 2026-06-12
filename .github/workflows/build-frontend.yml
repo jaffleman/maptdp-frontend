@@ -2,10 +2,10 @@ name: Build & Push Frontend Image (Docker Hub)
 
 on:
   push:
-    branches: [ "main", "staging", "dev" ]
+    branches: [ "staging" ]
 
   pull_request:
-    branches: [ "main", "staging", "dev" ]
+    branches: [ "staging" ]
 
 permissions:
   contents: read
