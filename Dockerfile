@@ -11,8 +11,9 @@ COPY package.json package-lock.json* yarn.lock* ./
 
 #La variable d'environnement pour l'URL de l'API backend
 # ENV REACT_APP_URL=http://maptdp-dev-maptdp-backend.maptdp.svc.cluster.local:8000
-ENV REACT_APP_URL=https://api.dev.jaffleman.tech/
-ENV API_URL=https://api.dev.jaffleman.tech/
+# ENV REACT_APP_URL=https://api.dev.jaffleman.tech/
+# ENV API_URL=https://api.dev.jaffleman.tech/
+ENV REACT_APP_API_ENV=dev
 
 # Installe les deps en respectant le lockfile détecté
 # - npm si package-lock.json existe
