@@ -33,7 +33,6 @@ function AppContent() {
   if (!user) {
   //   return <AuthPage />;
   }
-
   return (
     <div> 
       <Provider store={Store}>
