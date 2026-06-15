@@ -2,7 +2,11 @@ name: Frontend CI/CD
 
 on:
   push:
-    branches: ["dev", "staging"]
+    branches: ["dev"]
+
+  pull_request:
+    branches: ["staging"]
+    types: [closed]
 
 permissions:
   contents: write
@@ -202,30 +206,30 @@ jobs:
 
   # ---------------- RETAG STAGING ----------------
   retag:
-    if: github.ref_name == 'staging'
+    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
-
+  
     steps:
       - name: Extract SHA
         id: vars
-        run: echo "sha=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
-
+        run: echo "sha=$(echo ${{ github.event.pull_request.head.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+  
       - name: Login Docker
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-
+  
       - name: Pull dev image
         run: |
           docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:dev-sha-${{ steps.vars.outputs.sha }}
-
+  
       - name: Retag
         run: |
           docker tag \
           ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:dev-sha-${{ steps.vars.outputs.sha }} \
           ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:staging-sha-${{ steps.vars.outputs.sha }}
-
+  
       - name: Push staging image
         run: |
           docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:staging-sha-${{ steps.vars.outputs.sha }}
