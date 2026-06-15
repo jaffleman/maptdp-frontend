@@ -31,7 +31,6 @@ COPY . .
 # ENV NODE_OPTIONS=--openssl-legacy-provider
 RUN if [ -f yarn.lock ]; then yarn build; else npm run build; fi
 
-
 # --- Étape 2 : Runtime (Nginx) ---
 FROM nginx:1.25-alpine
 
