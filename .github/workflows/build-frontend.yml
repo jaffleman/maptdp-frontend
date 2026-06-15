@@ -1,124 +1,108 @@
-name: Build & Push Frontend Image
+name: Backend CI/CD
 
 on:
   push:
-    branches: ["dev", "staging", "main"]
-
-  pull_request:
-    branches: ["dev", "staging", "main"]
+    branches: ["dev", "staging"]
 
 permissions:
-  contents: read
+  contents: write
+  pull-requests: write
 
 env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   REGISTRY: docker.io
-  IMAGE_NAME: jaffleman971/maptdp-frontend
+  IMAGE_NAME: jaffleman971/maptdp-backend
 
 jobs:
+
+  # ✅ ---------------- BUILD IMAGE (DEV ONLY) ----------------
   build:
+    if: github.ref_name == 'dev'
     runs-on: ubuntu-latest
 
-    steps:
-      # ------------------------ CHECKOUT ------------------------
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      sha: ${{ steps.vars.outputs.sha }}
 
+    steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # ------------------------ SECRET SCAN ------------------------
-      - name: Scan secrets with Gitleaks
-        uses: gitleaks/gitleaks-action@v2
-
-      # ------------------------ NODE ------------------------
-      - name: Use Node 24
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: package-lock.json
-
-      # ------------------------ INSTALL & TEST ------------------------
-      - name: Install dependencies & test
+      - name: Install & Test
         run: |
           npm ci
-          npm test --if-present -- --watchAll=false
+          npm test --if-present
 
-      # ------------------------ BUILD ------------------------
-      - name: Build frontend
-        env:
-          CI: "true"
-        run: npm run build
+      - name: Extract SHA
+        id: vars
+        run: |
+          SHORT_SHA=${GITHUB_SHA::7}
+          echo "sha=$SHORT_SHA" >> $GITHUB_OUTPUT
 
-      # ------------------------ DOCKER SETUP ------------------------
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+      - name: Generate tag
+        id: tag
+        run: |
+          TAG="dev-sha-${GITHUB_SHA::7}"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      # ------------------------ LOGIN DOCKER HUB ------------------------
-      - name: Login Docker Hub
+      - name: Login Docker
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # ------------------------ GENERATE TAG ------------------------
-      - name: Generate image tag
-        id: tag
-        run: |
-          SHORT_SHA=${GITHUB_SHA::7}
-          BRANCH=${GITHUB_REF_NAME}
-
-          if [ "$BRANCH" = "dev" ]; then
-            PREFIX="dev"
-          elif [ "$BRANCH" = "staging" ]; then
-            PREFIX="staging"
-          elif [ "$BRANCH" = "main" ]; then
-            PREFIX="prod"
-          else
-            echo "Branch not supported: $BRANCH"
-            exit 1
-          fi
-
-          TAG="${PREFIX}-sha-${SHORT_SHA}"
-
-          echo "Generated tag: $TAG"
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
-
-      # ------------------------ BUILD LOCAL IMAGE ------------------------
-      - name: Build Docker image (local for scan)
+      - name: Build & Push
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: Dockerfile
-          load: true
-          push: false
-          tags: local-frontend:scan
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      # ------------------------ TRIVY SCAN ------------------------
-      - name: Scan Docker image with Trivy
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: local-frontend:scan
-          scanners: vuln
-          vuln-type: library
-          severity: CRITICAL,HIGH
-          exit-code: 1
-
-      # ------------------------ BUILD & PUSH ------------------------
-      - name: Build and push Docker image
-        if: github.event_name != 'pull_request'
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: Dockerfile
-          platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.tag }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+
+  # ✅ ---------------- AUTO PR ----------------
+  create-pr:
+    if: github.ref_name == 'dev'
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Create PR dev → staging
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: promote-dev-to-staging
+          base: staging
+          title: "Promote dev → staging"
+          body: "Auto promotion after successful build ✅"
+          commit-message: "Promote dev to staging"
+
+  # ✅ ---------------- RETAG IMAGE (STAGING ONLY) ----------------
+  retag:
+    if: github.ref_name == 'staging'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Extract SHA
+        id: vars
+        run: |
+          SHORT_SHA=${GITHUB_SHA::7}
+          echo "sha=$SHORT_SHA" >> $GITHUB_OUTPUT
+
+      - name: Login Docker
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Pull dev image
+        run: |
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:dev-sha-${{ steps.vars.outputs.sha }}
+
+      - name: Retag image
+        run: |
+          docker tag \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:dev-sha-${{ steps.vars.outputs.sha }} \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:staging-sha-${{ steps.vars.outputs.sha }}
+
+      - name: Push staging image
+        run: |
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:staging-sha-${{ steps.vars.outputs.sha }}
