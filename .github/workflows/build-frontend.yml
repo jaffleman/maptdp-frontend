@@ -1,4 +1,4 @@
-name: Backend CI/CD
+name: Frontend CI/CD
 
 on:
   push:
@@ -10,41 +10,143 @@ permissions:
 
 env:
   REGISTRY: docker.io
-  IMAGE_NAME: jaffleman971/maptdp-backend
+  IMAGE_NAME: jaffleman971/maptdp-frontend
+
+# =============================
+# ✅ JOBS DE TEST (PARALLÈLES)
+# =============================
 
 jobs:
 
-  # ✅ ---------------- BUILD IMAGE (DEV ONLY) ----------------
-  build:
+  # ---------------- SECRET SCAN ----------------
+  secrets-scan:
     if: github.ref_name == 'dev'
     runs-on: ubuntu-latest
 
-    outputs:
-      tag: ${{ steps.tag.outputs.tag }}
-      sha: ${{ steps.vars.outputs.sha }}
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+
+  # ---------------- INSTALL + TEST ----------------
+  test:
+    if: github.ref_name == 'dev'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: package-lock.json
 
       - name: Install & Test
         run: |
           npm ci
-          npm test --if-present
+          npm test --if-present -- --watchAll=false
+
+  # ---------------- AUDIT ----------------
+  audit:
+    if: github.ref_name == 'dev'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Audit npm
+        run: npm audit --audit-level=high
+
+  # ---------------- DOCKERFILE LINT ----------------
+  docker-lint:
+    if: github.ref_name == 'dev'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Hadolint
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: ./Dockerfile
+
+  # ---------------- BUILD IMAGE POUR SCAN ----------------
+  build-scan:
+    if: github.ref_name == 'dev'
+    runs-on: ubuntu-latest
+
+    outputs:
+      sha: ${{ steps.vars.outputs.sha }}
+      tag: ${{ steps.tag.outputs.tag }}
+
+    steps:
+      - uses: actions/checkout@v4
 
       - name: Extract SHA
         id: vars
-        run: |
-          SHORT_SHA=${GITHUB_SHA::7}
-          echo "sha=$SHORT_SHA" >> $GITHUB_OUTPUT
+        run: echo "sha=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
 
       - name: Generate tag
         id: tag
-        run: |
-          TAG="dev-sha-${GITHUB_SHA::7}"
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
+        run: echo "tag=dev-sha-${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build local image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: local-frontend:scan
+
+  # ---------------- TRIVY ----------------
+  trivy:
+    if: github.ref_name == 'dev'
+    runs-on: ubuntu-latest
+    needs: build-scan
+
+    steps:
+      - name: Scan image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: local-frontend:scan
+          severity: CRITICAL,HIGH
+          exit-code: 1
+
+# =============================
+# ✅ BUILD FINAL (SI TOUS OK)
+# =============================
+
+  build:
+    if: github.ref_name == 'dev'
+    needs:
+      - secrets-scan
+      - test
+      - audit
+      - docker-lint
+      - trivy
+    runs-on: ubuntu-latest
+
+    outputs:
+      sha: ${{ steps.vars.outputs.sha }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract SHA
+        id: vars
+        run: echo "sha=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
 
       - name: Login Docker
         uses: docker/login-action@v3
@@ -57,28 +159,32 @@ jobs:
         with:
           context: .
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.tag }}
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:dev-sha-${{ steps.vars.outputs.sha }}
 
-  # ✅ ---------------- AUTO PR ----------------
+# =============================
+# ✅ PR AUTO
+# =============================
+
   create-pr:
     if: github.ref_name == 'dev'
     needs: build
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Create PR dev → staging
+      - name: Create PR
         uses: peter-evans/create-pull-request@v6
         with:
           branch: promote-dev-to-staging
           base: staging
           title: "Promote dev → staging"
-          body: "Auto promotion after successful build ✅"
-          commit-message: "Promote dev to staging"
+          body: "Auto promotion ✅"
 
-  # ✅ ---------------- RETAG IMAGE (STAGING ONLY) ----------------
+# =============================
+# ✅ RETAG STAGING
+# =============================
+
   retag:
     if: github.ref_name == 'staging'
     runs-on: ubuntu-latest
@@ -86,9 +192,7 @@ jobs:
     steps:
       - name: Extract SHA
         id: vars
-        run: |
-          SHORT_SHA=${GITHUB_SHA::7}
-          echo "sha=$SHORT_SHA" >> $GITHUB_OUTPUT
+        run: echo "sha=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
 
       - name: Login Docker
         uses: docker/login-action@v3
@@ -100,11 +204,11 @@ jobs:
         run: |
           docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:dev-sha-${{ steps.vars.outputs.sha }}
 
-      - name: Retag image
+      - name: Retag
         run: |
           docker tag \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:dev-sha-${{ steps.vars.outputs.sha }} \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:staging-sha-${{ steps.vars.outputs.sha }}
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:dev-sha-${{ steps.vars.outputs.sha }} \
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:staging-sha-${{ steps.vars.outputs.sha }}
 
       - name: Push staging image
         run: |
