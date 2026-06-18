@@ -1,0 +1,73 @@
+name: Frontend PROD
+
+on:
+  pull_request:
+    branches:
+      - prod
+    types:
+      - closed
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY: docker.io
+  IMAGE_NAME: jaffleman971/maptdp-frontend
+
+jobs:
+
+  validate-source:
+    if: github.event.pull_request.merged == true
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate source
+        run: |
+          SOURCE="${{ github.event.pull_request.head.ref }}"
+
+          if [ "$SOURCE" != "staging" ]; then
+            echo "Only staging can be merged into prod"
+            exit 1
+          fi
+
+  prepare:
+    if: github.event.pull_request.merged == true
+
+    needs:
+      - validate-source
+
+    runs-on: ubuntu-latest
+
+    outputs:
+      sha: ${{ steps.sha.outputs.sha }}
+
+    steps:
+      - name: Extract SHA
+        id: sha
+        run: |
+          echo "sha=$(echo "${{ github.event.pull_request.head.sha }}" | cut -c1-7)" >> $GITHUB_OUTPUT
+
+  build-prod:
+    needs:
+      - prepare
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Docker Login
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build release image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.prepare.outputs.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
