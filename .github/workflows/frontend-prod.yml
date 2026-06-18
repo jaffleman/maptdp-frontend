@@ -48,7 +48,7 @@ jobs:
         run: |
           echo "sha=$(echo "${{ github.event.pull_request.head.sha }}" | cut -c1-7)" >> $GITHUB_OUTPUT
 
-  retag-staging:
+  retag-prod:
     needs:
       - prepare
   
@@ -61,19 +61,26 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
   
-      - name: Pull dev image
+      - name: Pull staging image
         run: |
           docker pull \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:dev-sha-${{ needs.prepare.outputs.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:staging-latest
   
-      - name: Tag staging image
+      - name: Promote production image
         run: |
           docker tag \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:dev-sha-${{ needs.prepare.outputs.sha }} \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:staging-latest \
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ needs.prepare.outputs.sha }}
   
-      - name: Push staging image
+          docker tag \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:staging-latest \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+  
+      - name: Push production image
         run: |
           docker push \
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ needs.prepare.outputs.sha }}
+  
+          docker push \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
 
