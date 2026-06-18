@@ -34,47 +34,53 @@ jobs:
 
   prepare:
     if: github.event.pull_request.merged == true
-
+  
     needs:
       - validate-source
-
+  
     runs-on: ubuntu-latest
-
+  
     outputs:
       sha: ${{ steps.sha.outputs.sha }}
-
+  
     steps:
       - name: Extract SHA
         id: sha
         run: |
           echo "sha=$(echo "${{ github.event.pull_request.head.sha }}" | cut -c1-7)" >> $GITHUB_OUTPUT
-
-  build-staging:
+  
+  retag-staging:
     needs:
       - prepare
-
+  
     runs-on: ubuntu-latest
-
+  
     steps:
-      - uses: actions/checkout@v4
-
       - name: Docker Login
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Build image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: true
-          tags: |
+  
+      - name: Pull dev image
+        run: |
+          docker pull \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:dev-sha-${{ needs.prepare.outputs.sha }}
+  
+      - name: Tag staging image
+        run: |
+          docker tag \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:dev-sha-${{ needs.prepare.outputs.sha }} \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:staging-sha-${{ needs.prepare.outputs.sha }}
+  
+      - name: Push staging image
+        run: |
+          docker push \
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:staging-sha-${{ needs.prepare.outputs.sha }}
 
   create-pr-prod:
     needs:
-      - build-staging
+      - retag-staging
 
     runs-on: ubuntu-latest
 
