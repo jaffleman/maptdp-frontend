@@ -124,6 +124,7 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:dev-sha-${{ steps.vars.outputs.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:dev-latest
 
 
   create-pr-staging:
