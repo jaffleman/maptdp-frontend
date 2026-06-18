@@ -125,6 +125,7 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:dev-sha-${{ steps.vars.outputs.sha }}
 
+
   create-pr-staging:
     runs-on: ubuntu-latest
     needs: build
