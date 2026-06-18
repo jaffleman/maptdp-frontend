@@ -44,11 +44,10 @@ jobs:
       sha: ${{ steps.sha.outputs.sha }}
   
     steps:
-      - name: Extract SHA
-        id: sha
+      - id: sha
         run: |
-          echo "sha=$(echo "${{ github.event.pull_request.head.sha }}" | cut -c1-7)" >> $GITHUB_OUTPUT
-  
+          echo "sha=$(date +%s)" >> $GITHUB_OUTPUT
+
   retag-staging:
     needs:
       - prepare
@@ -65,18 +64,25 @@ jobs:
       - name: Pull dev image
         run: |
           docker pull \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:dev-sha-${{ needs.prepare.outputs.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:dev-latest
   
       - name: Tag staging image
         run: |
           docker tag \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:dev-sha-${{ needs.prepare.outputs.sha }} \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:dev-latest \
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:staging-sha-${{ needs.prepare.outputs.sha }}
+  
+          docker tag \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:dev-latest \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:staging-latest
   
       - name: Push staging image
         run: |
           docker push \
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:staging-sha-${{ needs.prepare.outputs.sha }}
+  
+          docker push \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:staging-latest
 
   create-pr-prod:
     needs:
