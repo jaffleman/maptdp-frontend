@@ -1,6 +1,9 @@
 import { Tdp } from "../classes/Tdp"
 
-const apiBaseUrl = window.__RUNTIME_CONFIG__.API_BASE_URL
+if (!window.__RUNTIME_CONFIG__) {
+  throw new Error("Runtime configuration not loaded");
+}
+const apiBaseUrl = window.__RUNTIME_CONFIG__.API_BASE_URL;
 console.log(`apiBaseUrl : ${apiBaseUrl}`) 
 interface RepTab{
     rep:string
