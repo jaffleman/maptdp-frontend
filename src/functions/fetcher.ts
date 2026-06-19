@@ -1,6 +1,6 @@
 import { Tdp } from "../classes/Tdp"
 
-const env = process.env.REACT_APP_API_ENV
+const env = process.env.NODE_ENV
 interface RepTab{
     rep:string
 }
