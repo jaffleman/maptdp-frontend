@@ -1,6 +1,6 @@
 import { Tdp } from "../classes/Tdp"
 
-const env = process.env.NODE_ENV
+const env = process.env.NODENV
 console.log(`env : ${env}`) 
 interface RepTab{
     rep:string
