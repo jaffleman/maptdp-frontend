@@ -1,6 +1,10 @@
 import { Tdp } from "../classes/Tdp"
 
-const env = process.env.REACT_APP_API_ENV
+if (!window.__RUNTIME_CONFIG__) {
+  throw new Error("Runtime configuration not loaded");
+}
+const apiBaseUrl = window.__RUNTIME_CONFIG__.API_BASE_URL;
+console.log(`apiBaseUrl : ${apiBaseUrl}`) 
 interface RepTab{
     rep:string
 }
@@ -10,10 +14,10 @@ export async function fetcher (route:string, method:string, data:Tdp[]|RepTab[],
         else return {data:[]}
     }else{
         const body = JSON.stringify(data)
-        const result = await fetch(`https://api.${env}.jaffleman.tech/${route}`,
+        const result = await fetch(`${apiBaseUrl}/${route}`,
         { 
             method,
-            mode: 'cors',
+            // mode: 'cors',
             body,
             headers:{
                 'Content-Type' : 'application/json'
