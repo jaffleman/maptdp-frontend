@@ -1,6 +1,6 @@
 import { Tdp } from "../classes/Tdp"
 
-const apiBaseUrl = windows.window.__RUNTIME_CONFIG__.API_BASE_URL
+const apiBaseUrl = window.__RUNTIME_CONFIG__.API_BASE_URL
 console.log(`apiBaseUrl : ${apiBaseUrl}`) 
 interface RepTab{
     rep:string
