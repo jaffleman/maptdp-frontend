@@ -1,6 +1,7 @@
 import { Tdp } from "../classes/Tdp"
 
 const env = process.env.NODE_ENV
+console.log(`env : +${env}`) 
 interface RepTab{
     rep:string
 }
@@ -13,7 +14,7 @@ export async function fetcher (route:string, method:string, data:Tdp[]|RepTab[],
         const result = await fetch(`https://api.${env}.jaffleman.tech/${route}`,
         { 
             method,
-            mode: 'cors',
+            // mode: 'cors',
             body,
             headers:{
                 'Content-Type' : 'application/json'
