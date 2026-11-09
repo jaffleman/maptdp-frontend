@@ -29,9 +29,6 @@ function MapTdpHeader(){
         <div style={{flex:3, textAlign:'center'}}>
           <h2 data-testid="app-title">MapTDP</h2>
         </div> 
-        <div style={{flex:3, textAlign:'center'}}>
-          <h1 data-testid="app-title">Exemple pour le jury</h1>
-        </div>
         <div style={{flex:1, display:'flex', alignItems:'center', justifyContent:'flex-end', paddingRight:'0.75rem', gap:'0.5rem'}}>
           <Loader/>
           <button 
