@@ -14,7 +14,7 @@ export async function fetcher (route:string, method:string, data:Tdp[]|RepTab[],
         else return {data:[]}
     }else{
         const body = JSON.stringify(data)
-        const result = await fetch(`${apiBaseUrl}/${route}`,
+        const result = await fetch(`${apiBaseUrl}/tdp/${route}`,
         { 
             method,
             // mode: 'cors',
